@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DrugStore Easy Cloud</title>
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f3f6fb;color:#172033}
+.app{display:flex;min-height:100vh}
+.side{width:225px;background:#101a2b;color:#fff;padding:16px;position:fixed;inset:0 auto 0 0}
+.brand{font-weight:700;font-size:20px;padding:12px 8px 25px}
+.brand small{display:block;font-size:11px;opacity:.6;margin-top:5px}
+.nav button{width:100%;border:0;background:none;color:#dce5f4;text-align:left;padding:12px;border-radius:9px;margin:2px 0;font-size:14px;cursor:pointer}
+.nav button.active{background:#263650;color:#fff}
+.main{margin-left:225px;width:calc(100% - 225px);padding:22px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.top h1{margin:0}
+.status{background:#e5f7ed;color:#147a45;padding:8px 12px;border-radius:18px;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px #17203312}
+.stat b{font-size:28px;display:block;margin-top:7px}
+.muted{color:#6d788c;font-size:13px}
+.section{display:none}
+.section.active{display:block}
+.formgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+label{font-size:13px;font-weight:600;display:block;margin-bottom:5px}
+input,select{width:100%;padding:11px;border:1px solid #ccd5e2;border-radius:8px;font-size:14px;background:#fff}
+.actions{margin-top:15px;display:flex;gap:8px;flex-wrap:wrap}
+button.primary{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:11px 17px;font-weight:600;cursor:pointer}
+button.primary:hover{opacity:.92}
+table{width:100%;border-collapse:collapse;margin-top:14px}
+th,td{padding:10px;border-bottom:1px solid #edf0f5;text-align:left;font-size:13px}
+th{background:#f7f9fc}
+.low{color:#b45309;font-weight:700}
+.danger{color:#b91c1c;font-weight:700}
+.ok{color:#15803d;font-weight:700}
+.note{background:#eef5ff;border-left:4px solid #2563eb;padding:11px;border-radius:6px;font-size:13px;margin:12px 0}
+.cloud-connected{background:#e5f7ed;border-left-color:#15803d;color:#166534}
+.cloud-error{background:#fff1f2;border-left-color:#dc2626;color:#991b1b}
+@media(max-width:800px){
+.side{width:64px;padding:8px}
+.brand{font-size:0;text-align:center}
+.brand:before{content:'💊';font-size:25px}
+.brand small{display:none}
+.nav button{font-size:0;text-align:center;padding:13px 3px}
+.nav button span{font-size:19px}
+.main{margin-left:64px;width:calc(100% - 64px);padding:12px}
+.grid{grid-template-columns:repeat(2,1fr)}
+.formgrid{grid-template-columns:1fr}
+.top h1{font-size:20px}
+.status{font-size:10px;padding:7px}
+}
+</style>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+
+<body>
+<div class="app">
+
+<aside class="side">
+<div class="brand">DrugStore Easy Cloud<small>Offline + Cloud Ready</small></div>
+
+<div class="nav">
+<button class="active" onclick="showSection('dashboard',this)"><span>📊</span> Dashboard</button>
+<button onclick="showSection('medicines',this)"><span>💊</span> Medicines</button>
+<button onclick="showSection('receive',this)"><span>➕</span> Receive Stock</button>
+<button onclick="showSection('issue',this)"><span>➖</span> Issue Stock</button>
+<button onclick="showSection('transactions',this)"><span>↔️</span> Transactions</button>
+<button onclick="showSection('reports',this)"><span>📋</span> Reports</button>
+<button onclick="showSection('settings',this)"><span>⚙️</span> Settings</button>
+</div>
+</aside>
+
+<main class="main">
+
+<div class="top">
+<h1 id="title">Dashboard</h1>
+<div class="status" id="saveStatus">● Saved on this device</div>
+</div>
+
+<section id="dashboard" class="section active">
+<div class="grid">
+<div class="card stat"><span class="muted">Medicines</span><b id="smed">0</b></div>
+<div class="card stat"><span class="muted">Total Stock</span><b id="sstock">0</b></div>
+<div class="card stat"><span class="muted">Low Stock</span><b id="slow">0</b></div>
+<div class="card stat"><span class="muted">Expired Batches</span><b id="sexp">0</b></div>
+</div>
+
+<div class="grid" style="margin-top:14px;grid-template-columns:2fr 1fr">
+<div class="card">
+<h3>Recent Transactions</h3>
+<div id="recent"></div>
+</div>
+
+<div class="card">
+<h3>Google Drive Backup</h3>
+<p class="muted">Create and restore a separate cloud copy of the DrugStore database.</p>
+
+<div id="cloudStatus" class="note">Google Drive is not connected.</div>
+
+<div class="actions">
+<button class="primary" onclick="connectGoogle()">Connect Google Drive</button>
+<button class="primary" onclick="backupToDrive()">Backup to Drive</button>
+<button class="primary" onclick="restoreFromDrive()">Restore from Drive</button>
+</div>
+
+<p id="lastCloudBackup" class="muted"></p>
+</div>
+</div>
+</section>
+
+<section id="medicines" class="section">
+<div class="card">
+<h2>Medicine Master</h2>
+
+<div class="formgrid">
+<div><label>Medicine name *</label><input id="mname"></div>
+<div><label>Generic name</label><input id="mgeneric"></div>
+<div>
+<label>Unit</label>
+<select id="munit">
+<option>Tablet</option>
+<option>Capsule</option>
+<option>Bottle</option>
+<option>Vial</option>
+<option>Tube</option>
+<option>Pack</option>
+</select>
+</div>
+<div><label>Minimum stock</label><input id="mmin" type="number" value="10" min="0"></div>
+</div>
+
+<div class="actions">
+<button class="primary" onclick="addMedicine()">Add Medicine</button>
+</div>
+</div>
+
+<div class="card" style="margin-top:14px">
+<h3>Medicine List</h3>
+<div style="overflow:auto">
+<table>
+<thead>
+<tr>
+<th>Medicine</th><th>Generic</th><th>Unit</th><th>Min</th><th>Stock</th><th>Status</th>
+</tr>
+</thead>
+<tbody id="medtable"></tbody>
+</table>
+</div>
+</div>
+</section>
+
+<section id="receive" class="section">
+<div class="card">
+<h2>Receive Stock</h2>
+
+<div class="formgrid">
+<div><label>Date *</label><input id="rdate" type="date"></div>
+<div><label>Medicine *</label><select id="rmed"></select></div>
+<div><label>Batch Number *</label><input id="rbatch"></div>
+<div><label>Expiry Date *</label><input id="rexp" type="date"></div>
+<div><label>Quantity *</label><input id="rqty" type="number" min="1"></div>
+<div><label>Purchase Price</label><input id="rp" type="number" step="0.01" min="0"></div>
+<div><label>Issue Price</label><input id="rip" type="number" step="0.01" min="0"></div>
+<div><label>Supplier</label><input id="rsup"></div>
+</div>
+
+<div class="actions">
+<button class="primary" onclick="receiveStock()">Save Received Stock</button>
+</div>
+</div>
+</section>
+
+<section id="issue" class="section">
+<div class="card">
+<h2>Issue Stock</h2>
+
+<div class="formgrid">
+<div><label>Date *</label><input id="idate" type="date"></div>
+<div><label>Medicine *</label><select id="imed"></select></div>
+<div><label>Batch Number *</label><input id="ibatch"></div>
+<div><label>Quantity *</label><input id="iqty" type="number" min="1"></div>
+<div><label>Issued To</label><input id="ito"></div>
+<div><label>Reference</label><input id="iref"></div>
+</div>
+
+<div class="actions">
+<button class="primary" onclick="issueStock()">Issue Stock</button>
+</div>
+</div>
+</section>
+
+<section id="transactions" class="section">
+<div class="card">
+<h2>Transactions</h2>
+<div style="overflow:auto">
+<table>
+<thead>
+<tr>
+<th>Date</th><th>Type</th><th>Medicine</th><th>Batch</th><th>Qty</th><th>Supplier / Issued To</th>
+</tr>
+</thead>
+<tbody id="trtable"></tbody>
+</table>
+</div>
+</div>
+</section>
+
+<section id="reports" class="section">
+<div class="grid">
+<div class="card"><span class="muted">Stock value</span><h2 id="rvalue">0.00</h2></div>
+<div class="card"><span class="muted">Units issued</span><h2 id="rissued">0</h2></div>
+<div class="card"><span class="muted">Units received</span><h2 id="rreceived">0</h2></div>
+<div class="card"><span class="muted">Transactions</span><h2 id="rtrans">0</h2></div>
+</div>
+
+<div class="card" style="margin-top:14px">
+<h3>Local Backup</h3>
+<p class="muted">Download a backup before changing phones or clearing browser data.</p>
+<button class="primary" onclick="downloadBackup()">Download Backup</button>
+</div>
+</section>
+
+<section id="settings" class="section">
+<div class="card">
+<h2>Settings</h2>
+
+<div class="note">Local data is stored in this browser. Google Drive backup is optional.</div>
+
+<div id="settingsCloudStatus" class="note">Google Drive is not connected.</div>
+
+<div class="actions">
+<button class="primary" onclick="connectGoogle()">Connect Google Drive</button>
+<button class="primary" onclick="backupToDrive()">Backup to Google Drive</button>
+<button class="primary" onclick="restoreFromDrive()">Restore from Google Drive</button>
+</div>
+
+<div class="actions">
+<button class="primary" onclick="downloadBackup()">Download Data Backup</button>
+</div>
+</div>
+</section>
+
+</main>
+</div>
+
+<script>
+'use strict';
+
+/* =========================================================
+   DRUGSTORE DATABASE
+   ========================================================= */
+
+const KEY = 'drugstore_easy_cloud_v2';
+const DRIVE_FILE_NAME = 'drugstore-easy-database.json';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+/*
+ IMPORTANT:
+ This is the Google OAuth Web Client ID supplied for this app.
+*/
+const GOOGLE_CLIENT_ID =
+'54011581065-8af6p4b45pmmomrf1mcj2268r84fqaed.apps.googleusercontent.com';
+
+let db = loadDatabase();
+let tokenClient = null;
+let accessToken = '';
+let driveFileId = localStorage.getItem('drugstore_drive_file_id') || '';
+let pendingCloudAction = '';
+
+const $ = id => document.getElementById(id);
+
+const today = new Date().toISOString().slice(0,10);
+
+$('rdate').value = today;
+$('idate').value = today;
+
+/* =========================================================
+   DATABASE
+   ========================================================= */
+
+function loadDatabase(){
+    try{
+        const saved = localStorage.getItem(KEY);
+        if(!saved){
+            return {medicines:[],batches:[],transactions:[]};
+        }
+
+        const data = JSON.parse(saved);
+
+        if(!Array.isArray(data.medicines)) data.medicines = [];
+        if(!Array.isArray(data.batches)) data.batches = [];
+        if(!Array.isArray(data.transactions)) data.transactions = [];
+
+        return data;
+    }catch(error){
+        console.error('Database load error:',error);
+        alert('The local database could not be read. A new empty database will be used.');
+        return {medicines:[],batches:[],transactions:[]};
+    }
+}
+
+function saveDatabase(){
+    try{
+        localStorage.setItem(KEY,JSON.stringify(db));
+        $('saveStatus').textContent = '● Saved on this device';
+        refresh();
+    }catch(error){
+        console.error(error);
+        alert('Could not save the database on this device.');
+    }
+}
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
+
+function showSection(id,button){
+    document.querySelectorAll('.section').forEach(section=>{
+        section.classList.remove('active');
+    });
+
+    const section = $(id);
+    if(section) section.classList.add('active');
+
+    document.querySelectorAll('.nav button').forEach(btn=>{
+        btn.classList.remove('active');
+    });
+
+    if(button) button.classList.add('active');
+
+    $('title').textContent = button ? button.innerText.trim() : 'Dashboard';
+    refresh();
+}
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
+function escapeHTML(value){
+    return String(value ?? '').replace(/[&<>"']/g,char=>({
+        '&':'&amp;',
+        '<':'&lt;',
+        '>':'&gt;',
+        '"':'&quot;',
+        "'":'&#039;'
+    }[char]));
+}
+
+function medicineName(id){
+    const medicine = db.medicines.find(m=>Number(m.id)===Number(id));
+    return medicine ? medicine.name : 'Unknown';
+}
+
+function stockForMedicine(id){
+    return db.batches
+        .filter(batch=>Number(batch.med)===Number(id))
+        .reduce((total,batch)=>total + Number(batch.qty || 0),0);
+}
+
+function setSelectOptions(selectId,oldValue){
+    const select = $(selectId);
+    if(!select) return;
+
+    select.innerHTML =
+        '<option value="">Select medicine</option>' +
+        db.medicines.map(medicine =>
+            '<option value="' + medicine.id + '">' +
+            escapeHTML(medicine.name) +
+            '</option>'
+        ).join('');
+
+    if(oldValue !== undefined) select.value = oldValue;
+}
+
+/* =========================================================
+   MEDICINES
+   ========================================================= */
+
+function addMedicine(){
+    const name = $('mname').value.trim();
+
+    if(!name){
+        alert('Enter medicine name.');
+        return;
+    }
+
+    if(db.medicines.some(m=>m.name.toLowerCase()===name.toLowerCase())){
+        alert('Medicine already exists.');
+        return;
+    }
+
+    db.medicines.push({
+        id: Date.now(),
+        name: name,
+        generic: $('mgeneric').value.trim(),
+        unit: $('munit').value,
+        min: Number($('mmin').value) || 0
+    });
+
+    $('mname').value = '';
+    $('mgeneric').value = '';
+    $('mmin').value = '10';
+
+    saveDatabase();
+    alert('Medicine added successfully.');
+}
+
+/* =========================================================
+   RECEIVE STOCK
+   ========================================================= */
+
+function receiveStock(){
+    const medicine = $('rmed').value;
+    const batch = $('rbatch').value.trim();
+    const expiry = $('rexp').value;
+    const quantity = Number($('rqty').value);
+
+    if(!medicine || !batch || !expiry || !quantity || quantity <= 0){
+        alert('Please complete all required fields.');
+        return;
+    }
+
+    db.batches.push({
+        id: Date.now(),
+        med: Number(medicine),
+        batch: batch,
+        exp: expiry,
+        qty: quantity,
+        purchase: Number($('rp').value) || 0,
+        issue: Number($('rip').value) || 0,
+        supplier: $('rsup').value.trim()
+    });
+
+    db.transactions.unshift({
+        date: $('rdate').value || today,
+        type: 'RECEIVE',
+        med: Number(medicine),
+        batch: batch,
+        qty: quantity,
+        party: $('rsup').value.trim()
+    });
+
+    $('rbatch').value = '';
+    $('rexp').value = '';
+    $('rqty').value = '';
+    $('rp').value = '';
+    $('rip').value = '';
+    $('rsup').value = '';
+
+    saveDatabase();
+    alert('Stock received successfully.');
+}
+
+/* =========================================================
+   ISSUE STOCK
+   ========================================================= */
+
+function issueStock(){
+    const medicine = Number($('imed').value);
+    const quantity = Number($('iqty').value);
+    const batch = $('ibatch').value.trim();
+
+    if(!medicine || !quantity || quantity <= 0 || !batch){
+        alert('Please complete the required fields.');
+        return;
+    }
+
+    const row = db.batches.find(item =>
+        Number(item.med)===medicine &&
+        item.batch===batch &&
+        Number(item.qty)>=quantity
+    );
+
+    if(!row){
+        alert('Batch not found or insufficient stock.');
+        return;
+    }
+
+    row.qty -= quantity;
+
+    db.transactions.unshift({
+        date: $('idate').value || today,
+        type: 'ISSUE',
+        med: medicine,
+        batch: batch,
+        qty: quantity,
+        party: $('ito').value.trim(),
+        ref: $('iref').value.trim()
+    });
+
+    $('ibatch').value = '';
+    $('iqty').value = '';
+    $('ito').value = '';
+    $('iref').value = '';
+
+    saveDatabase();
+    alert('Stock issued successfully.');
+}
+
+/* =========================================================
+   REFRESH DASHBOARD
+   ========================================================= */
+
+function refresh(){
+    const receiveSelect = $('rmed');
+    const issueSelect = $('imed');
+
+    const oldReceive = receiveSelect ? receiveSelect.value : '';
+    const oldIssue = issueSelect ? issueSelect.value : '';
+
+    setSelectOptions('rmed',oldReceive);
+    setSelectOptions('imed',oldIssue);
+
+    $('smed').textContent = db.medicines.length;
+
+    $('sstock').textContent =
+        db.batches.reduce((total,batch)=>total + Number(batch.qty || 0),0);
+
+    $('slow').textContent =
+        db.medicines.filter(m=>stockForMedicine(m.id)<=Number(m.min||0)).length;
+
+    $('sexp').textContent =
+        db.batches.filter(batch=>batch.exp<today && Number(batch.qty)>0).length;
+
+    $('medtable').innerHTML = db.medicines.map(medicine=>{
+        const quantity = stockForMedicine(medicine.id);
+
+        const expired = db.batches.some(batch =>
+            Number(batch.med)===Number(medicine.id) &&
+            batch.exp<today &&
+            Number(batch.qty)>0
+        );
+
+        const status = expired
+            ? 'EXPIRED'
+            : quantity<=Number(medicine.min||0)
+                ? 'LOW'
+                : 'OK';
+
+        const className = expired
+            ? 'danger'
+            : quantity<=Number(medicine.min||0)
+                ? 'low'
+                : 'ok';
+
+        return '<tr>' +
+            '<td>' + escapeHTML(medicine.name) + '</td>' +
+            '<td>' + escapeHTML(medicine.generic) + '</td>' +
+            '<td>' + escapeHTML(medicine.unit) + '</td>' +
+            '<td>' + Number(medicine.min||0) + '</td>' +
+            '<td>' + quantity + '</td>' +
+            '<td class="' + className + '">' + status + '</td>' +
+            '</tr>';
+    }).join('');
+
+    $('trtable').innerHTML = db.transactions.map(transaction=>{
+        return '<tr>' +
+            '<td>' + escapeHTML(transaction.date) + '</td>' +
+            '<td>' + escapeHTML(transaction.type) + '</td>' +
+            '<td>' + escapeHTML(medicineName(transaction.med)) + '</td>' +
+            '<td>' + escapeHTML(transaction.batch) + '</td>' +
+            '<td>' + Number(transaction.qty||0) + '</td>' +
+            '<td>' + escapeHTML(transaction.party||'') + '</td>' +
+            '</tr>';
+    }).join('');
+
+    $('recent').innerHTML =
+        db.transactions.slice(0,6).map(transaction =>
+            '<p><b>' +
+            escapeHTML(transaction.type) +
+            '</b> — ' +
+            escapeHTML(medicineName(transaction.med)) +
+            ' (' +
+            Number(transaction.qty||0) +
+            ')</p>'
+        ).join('') ||
+        '<p class="muted">No transactions yet.</p>';
+
+    const stockValue = db.batches.reduce(
+        (total,batch)=>
+            total +
+            Number(batch.qty||0) * Number(batch.purchase||0),
+        0
+    );
+
+    $('rvalue').textContent = stockValue.toFixed(2);
+
+    $('rissued').textContent =
+        db.transactions
+            .filter(t=>t.type==='ISSUE')
+            .reduce((total,t)=>total+Number(t.qty||0),0);
+
+    $('rreceived').textContent =
+        db.transactions
+            .filter(t=>t.type==='RECEIVE')
+            .reduce((total,t)=>total+Number(t.qty||0),0);
+
+    $('rtrans').textContent = db.transactions.length;
+
+    updateCloudStatus();
+}
+
+/* =========================================================
+   GOOGLE DRIVE
+   ========================================================= */
+
+function setCloudStatus(text,type=''){
+    ['cloudStatus','settingsCloudStatus'].forEach(id=>{
+        const element = $(id);
+        if(!element) return;
+
+        element.textContent = text;
+        element.className = 'note';
+
+        if(type==='connected') element.classList.add('cloud-connected');
+        if(type==='error') element.classList.add('cloud-error');
+    });
+}
+
+function updateCloudStatus(){
+    if(accessToken){
+        setCloudStatus('✓ Google Drive connected.','connected');
+    }else{
+        setCloudStatus('Google Drive is not connected.');
+    }
+
+    const lastBackup = localStorage.getItem('drugstore_last_drive_backup');
+    const element = $('lastCloudBackup');
+
+    if(element){
+        element.textContent =
+            lastBackup
+                ? 'Last cloud backup: ' + lastBackup
+                : '';
+    }
+}
+
+function googleReady(){
+    return !!(
+        window.google &&
+        window.google.accounts &&
+        window.google.accounts.oauth2
+    );
+}
+
+function initGoogle(){
+    if(!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.trim()===''){
+        alert('Google OAuth Client ID is missing.');
+        return false;
+    }
+
+    if(!googleReady()){
+        alert('Google Sign-In is still loading. Please wait a few seconds and try again.');
+        return false;
+    }
+
+    if(!tokenClient){
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: DRIVE_SCOPE,
+
+            callback: response=>{
+                if(response.error){
+                    console.error('Google OAuth error:',response);
+                    accessToken = '';
+                    setCloudStatus('Google authorization failed.','error');
+                    alert('Google authorization failed. Please check your Google Cloud OAuth settings.');
+                    return;
+                }
+
+                accessToken = response.access_token;
+                updateCloudStatus();
+
+                if(pendingCloudAction==='backup'){
+                    pendingCloudAction = '';
+                    backupToDrive();
+                }else if(pendingCloudAction==='restore'){
+                    pendingCloudAction = '';
+                    restoreFromDrive();
+                }
+            }
+        });
+    }
+
+    return true;
+}
+
+function connectGoogle(){
+    if(!initGoogle()) return;
+
+    tokenClient.requestAccessToken({
+        prompt: accessToken ? '' : 'consent'
+    });
+}
+
+function requestGoogleAccess(action){
+    pendingCloudAction = action;
+
+    if(!initGoogle()) return;
+
+    tokenClient.requestAccessToken({
+        prompt: accessToken ? '' : 'consent'
+    });
+}
+
+async function driveFetch(url,options={}){
+    if(!accessToken){
+        throw new Error('Google Drive is not connected.');
+    }
+
+    const headers = Object.assign(
+        {},
+        options.headers || {},
+        {Authorization:'Bearer ' + accessToken}
+    );
+
+    const response = await fetch(url,Object.assign({},options,{headers}));
+
+    if(!response.ok){
+        const text = await response.text();
+        throw new Error(text || ('Google Drive error: ' + response.status));
+    }
+
+    return response;
+}
+
+async function findDriveFile(){
+    if(driveFileId){
+        try{
+            return await (
+                await driveFetch(
+                    'https://www.googleapis.com/drive/v3/files/' +
+                    encodeURIComponent(driveFileId) +
+                    '?fields=id,name,modifiedTime'
+                )
+            ).json();
+        }catch(error){
+            console.warn('Stored Drive file no longer available.');
+            driveFileId = '';
+            localStorage.removeItem('drugstore_drive_file_id');
+        }
+    }
+
+    const query =
+        "name='" +
+        DRIVE_FILE_NAME.replace(/'/g,"\\'") +
+        "' and trashed=false";
+
+    const url =
+        'https://www.googleapis.com/drive/v3/files' +
+        '?spaces=drive' +
+        '&fields=files(id,name,modifiedTime)' +
+        '&q=' +
+        encodeURIComponent(query);
+
+    const data = await (await driveFetch(url)).json();
+
+    if(data.files && data.files.length){
+        driveFileId = data.files[0].id;
+        localStorage.setItem('drugstore_drive_file_id',driveFileId);
+        return data.files[0];
+    }
+
+    return null;
+}
+
+function makeMultipart(metadata,text){
+    const boundary = 'DrugStoreEasyBoundary' + Date.now();
+
+    const content =
+        '--' + boundary + '\r\n' +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        JSON.stringify(metadata) + '\r\n' +
+
+        '--' + boundary + '\r\n' +
+        'Content-Type: application/json\r\n\r\n' +
+        text + '\r\n' +
+
+        '--' + boundary + '--';
+
+    return new Blob(
+        [content],
+        {type:'multipart/related; boundary=' + boundary}
+    );
+}
+
+async function backupToDrive(){
+    if(!accessToken){
+        requestGoogleAccess('backup');
+        return;
+    }
+
+    try{
+        const file = await findDriveFile();
+
+        const body = JSON.stringify({
+            version:2,
+            exportedAt:new Date().toISOString(),
+            source:'DrugStore Easy Cloud',
+            database:db
+        },null,2);
+
+        const metadata = {
+            name:DRIVE_FILE_NAME,
+            mimeType:'application/json'
+        };
+
+        let url;
+        let method;
+
+        if(file){
+            url =
+                'https://www.googleapis.com/upload/drive/v3/files/' +
+                encodeURIComponent(file.id) +
+                '?uploadType=multipart&fields=id,name,modifiedTime';
+
+            method = 'PATCH';
+        }else{
+            url =
+                'https://www.googleapis.com/upload/drive/v3/files' +
+                '?uploadType=multipart&fields=id,name,modifiedTime';
+
+            method = 'POST';
+        }
+
+        const response = await driveFetch(url,{
+            method:method,
+            body:makeMultipart(metadata,body)
+        });
+
+        const result = await response.json();
+
+        driveFileId = result.id;
+        localStorage.setItem('drugstore_drive_file_id',result.id);
+
+        const timestamp = new Date().toLocaleString();
+        localStorage.setItem('drugstore_last_drive_backup',timestamp);
+
+        updateCloudStatus();
+
+        alert('Backup completed successfully in Google Drive.');
+    }catch(error){
+        console.error('Drive backup error:',error);
+
+        if(String(error.message).includes('401')){
+            accessToken = '';
+            setCloudStatus('Google Drive authorization expired.','error');
+        }
+
+        alert(
+            'Google Drive backup failed.\n\n' +
+            (error.message || 'Unknown error.')
+        );
+    }
+}
+
+async function restoreFromDrive(){
+    if(!accessToken){
+        requestGoogleAccess('restore');
+        return;
+    }
+
+    if(!confirm(
+        'Restore the database from Google Drive?\n\n' +
+        'This will replace the current browser database.'
+    )){
+        return;
+    }
+
+    try{
+        const file = await findDriveFile();
+
+        if(!file){
+            alert('No DrugStore Easy backup was found in this Google Drive.');
+            return;
+        }
+
+        const response = await driveFetch(
+            'https://www.googleapis.com/drive/v3/files/' +
+            encodeURIComponent(file.id) +
+            '?alt=media'
+        );
+
+        const backupData = await response.json();
+
+        const restored = backupData.database || backupData;
+
+        if(
+            !restored ||
+            !Array.isArray(restored.medicines) ||
+            !Array.isArray(restored.batches) ||
+            !Array.isArray(restored.transactions)
+        ){
+            throw new Error(
+                'The Drive file is not a valid DrugStore database.'
+            );
+        }
+
+        db = restored;
+        saveDatabase();
+
+        alert('Database restored successfully from Google Drive.');
+    }catch(error){
+        console.error('Drive restore error:',error);
+
+        if(String(error.message).includes('401')){
+            accessToken = '';
+            setCloudStatus('Google Drive authorization expired.','error');
+        }
+
+        alert(
+            'Google Drive restore failed.\n\n' +
+            (error.message || 'Unknown error.')
+        );
+    }
+}
+
+/* =========================================================
+   LOCAL BACKUP
+   ========================================================= */
+
+function downloadBackup(){
+    const data = JSON.stringify({
+        version:2,
+        exportedAt:new Date().toISOString(),
+        source:'DrugStore Easy Cloud',
+        database:db
+    },null,2);
+
+    const blob = new Blob(
+        [data],
+        {type:'application/json'}
+    );
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = 'drugstore-backup-' + today + '.json';
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+/* =========================================================
+   START APPLICATION
+   ========================================================= */
+
+refresh();
+updateCloudStatus();
+
+</script>
+</body>
+</html>
